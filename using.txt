@@ -1,0 +1,7 @@
+1.  Drop any number of .csv files into the "Input" folder
+2.  A folder action will execute a shell script that:
+	a.  Changes to the "Input" directory
+	b.  Runs a Python script that processes the csv files and assigns tags
+	c.  Concatenates the tagged csv files and saves the output to the "Output" directory
+	d.  Removes all the csv files from the "Input" directory
+3.  The csv file in the "Output" directory is ready to be imported into Numbers!
