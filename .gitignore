@@ -6,4 +6,6 @@
 /finance-env
 /input
 /model/backups
-model/preprocessor_vectorizer.pickle
+model/backups/preprocessor_vectorizer.pickle
+*.ipynb
+*.ipynb

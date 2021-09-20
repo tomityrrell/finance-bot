@@ -26,6 +26,7 @@ credit = {"type": "Cash Rewards",
 target_dicts = [checking, credit]
 
 
+# TO DO:  Generalize data loading/configs into class(es)
 def tag_inputs():
     inputs = []
     for d in target_dicts:
@@ -33,6 +34,7 @@ def tag_inputs():
         for filepath in d["files"]:
             # Open file to be tagged, process
             target = None
+
             if d["type"] == "Checking":
                 target = pd.read_csv(filepath, header=5)
                 target.dropna(axis=0, inplace=True, how="any")
@@ -61,7 +63,6 @@ def tag_inputs():
     output.fillna(value="", inplace=True)
     output.date = pd.to_datetime(output.date)
     output.check = output.check.astype("float64")
-    output.fillna(value="", inplace=True)
     output.sort_values(by="date", inplace=True)
     output.reset_index(drop=True, inplace=True)
 
