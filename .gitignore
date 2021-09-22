@@ -9,3 +9,5 @@
 model/backups/preprocessor_vectorizer.pickle
 *.ipynb
 *.ipynb
+.DS_Store
+*.yml

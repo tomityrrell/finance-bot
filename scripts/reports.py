@@ -1,4 +1,4 @@
-from data import load_source
+from data import read_source
 
 
 def current_balance(source):
@@ -47,7 +47,7 @@ def yearly_report(source):
 
 
 if __name__ == '__main__':
-    source = load_source()
+    source = read_source()
 
     monthly_report(source)
     yearly_report(source)

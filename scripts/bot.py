@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from data import target_columns, load_source, write_source
+from data import target_columns, read_source, write_source
 from reports import *
 
-from model import load_model, build_model, review_tags
+from model import read_model, build_model
 
 
 # configs for data sources
@@ -67,10 +67,57 @@ def tag_inputs():
     output.reset_index(drop=True, inplace=True)
 
     # Predict tags on new inputs
-    model = load_model()
+    model = read_model()
     output["tags"] = model.predict(output)
 
     return output
+
+
+def review_tags(output, threshold=0.8, interactive=False):
+    model = read_model()
+
+    # get tags from model
+    tags = model.classes_
+
+    # compute and sort model probabilities
+    probs = model.predict_proba(output)
+
+    # identify trans/tags with low confidence
+    low_prob_index = output.index[probs.max(axis=1) < threshold]
+    trans_to_review = output.iloc[low_prob_index]
+
+    low_prob_columns = probs[low_prob_index].argsort(axis=1)
+
+    # find max probability and top 3 tags for each low prob transaction
+    low_probs = probs[low_prob_index, low_prob_columns[:, -1]]
+    low_prob_tags = tags[low_prob_columns[:, -3:]]
+
+    revised_output = output.copy()
+    # review outliers with user
+    if interactive:
+        print("Interactive Mode")
+
+        n = len(low_prob_index)
+        if n == 0:
+            print("No low probability labels found")
+        else:
+            print("{} tags to review:\n".format(n))
+
+        for i in range(n):
+            print("Probability {}% transaction:".format(np.round(low_probs[i]*100, 4)))
+            print(trans_to_review.iloc[i])
+            print("Suggestions:  ", low_prob_tags[i][::-1])
+
+            user_input = input("Press return to confirm or enter a new tag for the above transaction...\n")
+            if user_input:
+                revised_output.loc[low_prob_index[i], "tags"] = user_input
+    # or leave uncertain tags blank
+    else:
+        print("Non-interactive Mode")
+        revised_output.loc[low_prob_index, "tags"] = ""
+
+    # return corrected data
+    return low_prob_index, revised_output
 
 
 def process_inputs(interactive=False, event="insert"):
@@ -79,7 +126,7 @@ def process_inputs(interactive=False, event="insert"):
     low_prob_index, revised_output = review_tags(raw_output, interactive=interactive)
 
     # add new inputs to source
-    source = load_source()
+    source = read_source()
     combined = source.append(revised_output, ignore_index=True)
 
     # remove duplicates

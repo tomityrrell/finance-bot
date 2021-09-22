@@ -1,6 +1,5 @@
 from datetime import datetime
 
-import pandas as pd
 import streamlit as st
 
 import data
@@ -17,8 +16,8 @@ import model
 this_month = datetime.now().month
 this_year = datetime.now().year
 
-mlp = model.load_model()
-source = data.load_source()
+mlp = model.read_model()
+source = data.read_source()
 source = source[source.date >= "2017-01-19"]
 
 monthly = reports.monthly_report(source)
