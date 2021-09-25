@@ -1,3 +1,4 @@
+.DS_Store
 .idea
 */__pycache__
 */.ipynb_checkpoints
@@ -8,6 +9,4 @@
 /model/backups
 model/backups/preprocessor_vectorizer.pickle
 *.ipynb
-*.ipynb
-.DS_Store
 *.yml

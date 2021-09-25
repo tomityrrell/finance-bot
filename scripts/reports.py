@@ -1,5 +1,4 @@
-from data import read_source
-
+import data
 
 def current_balance(source):
     return source.amount.sum().round(2)
@@ -47,7 +46,7 @@ def yearly_report(source):
 
 
 if __name__ == '__main__':
-    source = read_source()
+    source = data.read_source()
 
     monthly_report(source)
     yearly_report(source)

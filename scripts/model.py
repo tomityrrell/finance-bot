@@ -1,8 +1,6 @@
 import time
 import pickle
 
-import numpy as np
-
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 
@@ -45,7 +43,7 @@ def build_model(event="model_creation"):
                             ('type', OrdinalEncoder(), ["type"])
                             ])
     model = Pipeline([('column_trans', ct),
-                      ('mlp', MLPClassifier(hidden_layer_sizes=(250, 250)))])
+                      ('mlp', MLPClassifier(hidden_layer_sizes=(250, 250, 250)))])
 
     # Train model
     model.fit(training_source, training_source.tags)

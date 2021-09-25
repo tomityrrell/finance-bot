@@ -2,11 +2,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from data import target_columns, read_source, write_source
-from reports import *
-
-from model import read_model, build_model
-
+import data
+import model
 
 # configs for data sources
 checking = {"type": "Checking",
@@ -27,7 +24,7 @@ target_dicts = [checking, credit]
 
 
 # TO DO:  Generalize data loading/configs into class(es)
-def tag_inputs():
+def read_inputs():
     inputs = []
     for d in target_dicts:
         # Process files by type
@@ -48,101 +45,88 @@ def tag_inputs():
 
             inputs.append(target)
 
-    # Concatenate inputs
-    output = pd.concat(inputs, ignore_index=True)
+    return inputs
 
-    # Remove duplicates
-    output.drop_duplicates(subset=target_columns[:3] + target_columns[-2:], keep="first", inplace=True)
+
+def format_and_tag_inputs():
+    inputs = read_inputs()
+
+    # Concatenate inputs
+    input_df = pd.concat(inputs, ignore_index=True)
 
     # Add Tags, Notes columns
-    output["tags"] = ""
-    output["notes"] = ""
+    input_df["tags"] = ""
+    input_df["notes"] = ""
 
     # Formatting
-    output = output[target_columns]
-    output.fillna(value="", inplace=True)
-    output.date = pd.to_datetime(output.date)
-    output.check = output.check.astype("float64")
-    output.sort_values(by="date", inplace=True)
-    output.reset_index(drop=True, inplace=True)
+    input_df = input_df[data.target_columns]
+    input_df.fillna(value="", inplace=True)
+    input_df.date = pd.to_datetime(input_df.date)
+    input_df.check = input_df.check.astype("float64")
+    input_df.sort_values(by="date", inplace=True)
+    input_df.reset_index(drop=True, inplace=True)
+
+    # Remove duplicates
+    input_df.drop_duplicates(subset=data.duplicate_columns_subset, keep="first", inplace=True)
 
     # Predict tags on new inputs
-    model = read_model()
-    output["tags"] = model.predict(output)
+    tagger = model.read_model()
+    input_df["tags"] = tagger.predict(input_df)
 
-    return output
+    return input_df
 
 
-def review_tags(output, threshold=0.8, interactive=False):
-    model = read_model()
+def validate_inputs(input_df, threshold=0.8):
+    # Load model
+    tagger = model.read_model()
 
     # get tags from model
-    tags = model.classes_
+    tags = tagger.classes_
 
     # compute and sort model probabilities
-    probs = model.predict_proba(output)
+    probs = tagger.predict_proba(input_df)
 
     # identify trans/tags with low confidence
-    low_prob_index = output.index[probs.max(axis=1) < threshold]
-    trans_to_review = output.iloc[low_prob_index]
-
-    low_prob_columns = probs[low_prob_index].argsort(axis=1)
+    low_prob_index = input_df.index[probs.max(axis=1) < threshold]
 
     # find max probability and top 3 tags for each low prob transaction
-    low_probs = probs[low_prob_index, low_prob_columns[:, -1]]
+    low_prob_columns = probs[input_df.index.isin(low_prob_index)].argsort(axis=1)
+    low_probs = probs[input_df.index.isin(low_prob_index), low_prob_columns[:, -1]]
     low_prob_tags = tags[low_prob_columns[:, -3:]]
 
-    revised_output = output.copy()
-    # review outliers with user
-    if interactive:
-        print("Interactive Mode")
+    # add validations to trans_to_review df
+    trans_to_review = input_df.loc[input_df.index.isin(low_prob_index)].copy()
+    trans_to_review["tags_probability"] = low_probs
+    trans_to_review["tags_suggested"] = [l[::-1] for l in low_prob_tags]
+    trans_to_review.sort_values(by="tags_probability")
+    # trans_to_review = trans_to_review[trans_to_review.columns.sort_values()]
 
-        n = len(low_prob_index)
-        if n == 0:
-            print("No low probability labels found")
-        else:
-            print("{} tags to review:\n".format(n))
+    # # review outliers with user
+    # if interactive:
+    #     print("Interactive Mode")
+    #
+    #     n = len(low_prob_index)
+    #     if n == 0:
+    #         print("No low probability labels found")
+    #     else:
+    #         print("{} tags to review:\n".format(n))
+    #
+    #         for i in range(n):
+    #             print("Probability {}% transaction:".format(low_probs[i]*100))
+    #             print(trans_to_review.iloc[i])
+    #             print("Suggestions:  ", low_prob_tags[i][::-1])
+    #
+    #             user_input = input_df("Press return to confirm or enter a new tag for the above transaction...\n")
+    #             if user_input:
+    #                 validated_input.loc[low_prob_index[i], "tags"] = user_input
+    # # or leave uncertain tags blank
+    # else:
+    #     print("Non-interactive Mode")
+    #     validated_input.loc[low_prob_index, "tags"] = ""
 
-        for i in range(n):
-            print("Probability {}% transaction:".format(np.round(low_probs[i]*100, 4)))
-            print(trans_to_review.iloc[i])
-            print("Suggestions:  ", low_prob_tags[i][::-1])
-
-            user_input = input("Press return to confirm or enter a new tag for the above transaction...\n")
-            if user_input:
-                revised_output.loc[low_prob_index[i], "tags"] = user_input
-    # or leave uncertain tags blank
-    else:
-        print("Non-interactive Mode")
-        revised_output.loc[low_prob_index, "tags"] = ""
-
-    # return corrected data
-    return low_prob_index, revised_output
-
-
-def process_inputs(interactive=False, event="insert"):
-    # tag inputs and validate if interactive=True
-    raw_output = tag_inputs()
-    low_prob_index, revised_output = review_tags(raw_output, interactive=interactive)
-
-    # add new inputs to source
-    source = read_source()
-    combined = source.append(revised_output, ignore_index=True)
-
-    # remove duplicates
-    combined.drop_duplicates(subset=target_columns[:3] + target_columns[-2:], keep="first", inplace=True)
-
-    new_source = combined.sort_values(by="date").reset_index(drop=True)
-
-    # update source and generate reports
-    write_source(new_source, event)
-    monthly_report(new_source)
-    yearly_report(new_source)
-
-    # retrain model with new inputs if interactive=True
-    if interactive and len(low_prob_index) > 0:
-        build_model("new_validated_inputs")
+    # return validated data
+    return trans_to_review
 
 
 if __name__ == "__main__":
-    process_inputs(True)
+    data.insert_inputs(format_and_tag_inputs())
