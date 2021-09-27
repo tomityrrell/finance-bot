@@ -3,10 +3,9 @@ from datetime import datetime
 import streamlit as st
 
 import data
-from data import target_columns
 import reports
 
-# import bot
+import bot
 import model
 
 #
@@ -18,7 +17,7 @@ this_year = datetime.now().year
 
 mlp = model.read_model()
 source = data.read_source()
-source = source[source.date >= "2017-01-19"]
+# source = source[source.date >= "2017-01-19"]
 
 monthly = reports.monthly_report(source)
 yearly = reports.yearly_report(source)
@@ -33,18 +32,14 @@ st.set_page_config(layout='wide')
 # SIDEBAR
 #
 
-views = st.sidebar.selectbox("Views", ["Data", "Model"])
-
 st.sidebar.title("Filters")
 enable_year_filter = st.sidebar.checkbox("Year")
 enable_month_filter = st.sidebar.checkbox("Month")
 enable_tags_filter = st.sidebar.checkbox("Tags")
 
+views = st.sidebar.selectbox("Views", ["Data", "Model"])
+
 st.sidebar.title("Functions")
-enable_process_inputs = st.sidebar.checkbox("Process Inputs")
-enable_tag_update = st.sidebar.checkbox("Tag Update")
-enable_duplicates = st.sidebar.checkbox("Check Duplicates")
-enable_tag_replace = st.sidebar.checkbox("Tag Replace")
 
 st.title('Finance Bot 6000')
 st.write("Current Balance:", reports.current_balance(source))
@@ -53,52 +48,55 @@ st.write("Current Balance:", reports.current_balance(source))
 # FILTERS
 #
 
-if "Data" in views:
-    df_filter = source.index == source.index
+df_filter = source.index == source.index
+df = source[df_filter]
+
+report = st.empty()
+
+# Year and Month filters
+left_year_column, right_month_column = st.columns(2)
+if enable_year_filter:
+    y = left_year_column.selectbox("Year", yearly.columns)
+    df_filter = df_filter & (source.date.dt.year == y)
+
+    enable_summary_report = st.checkbox("View full report")
+    if enable_month_filter:
+        m = right_month_column.selectbox("Month", monthly[y].columns)
+        df_filter = df_filter & (source.date.dt.month == m)
+
+        if enable_summary_report:
+            monthly_f = monthly.loc[:, monthly.columns <= (y, m)].sort_values(by=(y, m))
+            report.write(monthly_f)
+    elif enable_summary_report:
+        report.write(yearly.loc[:, yearly.columns <= y].sort_values(by=y))
+
     df = source[df_filter]
 
-    report = st.empty()
-    plot = st.empty()
+# Tag filters
+if enable_tags_filter:
+    tag_filter = st.multiselect("Tags", df.tags.sort_values().unique(), default=[])
+    df_filter = df_filter & (source.tags.isin(tag_filter)) if tag_filter else df_filter
 
-    # Year and Month filters
-    left_year_column, right_month_column = st.beta_columns(2)
-    if enable_year_filter:
-        y = left_year_column.selectbox("Year", yearly.columns)
-        df_filter = df_filter & (source.date.dt.year == y)
+    # Display filtered data
+    df = source[df_filter].sort_values("date")
 
-        enable_summary_report = st.checkbox("View full report")
-        if enable_month_filter:
-            m = right_month_column.selectbox("Month", monthly[y].columns)
-            df_filter = df_filter & (source.date.dt.month == m)
+st.write(df)
 
-            if enable_summary_report:
-                monthly_f = monthly.loc[:, monthly.columns <= (y, m)].sort_values(by=(y, m))
-                report.write(monthly_f)
-                # plot.line_chart(monthly_f[y].loc["Netflow"])
-        elif enable_summary_report:
-            report.write(yearly.loc[:, yearly.columns <= y].sort_values(by=y))
-            # plot.line_chart(yearly.loc["Netflow"])
+df_grouped = df.groupby("tags").sum().amount.sort_values()
+df_grouped_in = df_grouped[df_grouped > 0]
+df_grouped_out = df_grouped[df_grouped < 0]
 
-        df = source[df_filter]
+left_year_column.write(df_grouped_out)
+right_month_column.bar_chart(df_grouped_out)
 
-    # Tag filters
-    if enable_tags_filter:
-        tag_filter = st.multiselect("Tags", df.tags.sort_values().unique(), default=[])
-        df_filter = df_filter & (source.tags.isin(tag_filter)) if tag_filter else df_filter
-
-        # Display filtered data
-        df = source[df_filter].sort_values("date")
-
-    st.write(df)
+if "Data" in views:
+    enable_tag_update = st.sidebar.checkbox("Tag Update")
+    enable_duplicates = st.sidebar.checkbox("Check Duplicates")
+    enable_tag_replace = st.sidebar.checkbox("Tag Replace")
 
     #
     # FUNCTIONS
     #
-
-    # PROCESS INPUTS
-    if enable_process_inputs:
-        st.write("Process Inputs function not yet implemented")
-        # bot.process_inputs(interactive=True)
 
     # TAG UPDATE
     if enable_tag_update:
@@ -109,7 +107,7 @@ if "Data" in views:
             update_index = index
             st.write(source_to_update)
 
-            left_tag_column, right_tag_column = st.beta_columns(2)
+            left_tag_column, right_tag_column = st.columns(2)
             existing_tag = left_tag_column.selectbox("Select a tag for this record...", [""] + mlp.classes_.tolist())
             new_tag = right_tag_column.text_input("...or enter a new tag")
             tag = existing_tag if existing_tag else new_tag
@@ -122,16 +120,6 @@ if "Data" in views:
                 if st.button("Re-train Model"):
                     model.build_model("updated_tags")
                     st.write("Model Re-training Complete!")
-
-    # CHECK DUPLICATES
-    if enable_duplicates:
-        st.header("Check for Duplicates")
-        duplicates = df.duplicated(subset=target_columns[:3] + target_columns[-2:], keep="first")
-        st.write(df[duplicates])
-
-        if duplicates.sum() and st.button("Drop {} Duplicates".format(duplicates.sum())):
-            source.drop_duplicates(subset=target_columns[:3] + target_columns[-2:], keep="first", inplace=True)
-            data.write_source(source, event="drop_duplicates")
 
     # TAG REPLACE
     if enable_tag_replace:
@@ -147,3 +135,55 @@ if "Data" in views:
                 st.write("Tag Replacement Complete!")
                 model.build_model("replaced_tags")
                 st.write("Model Re-training Complete!")
+
+    # CHECK DUPLICATES
+    if enable_duplicates:
+        st.header("Check for Duplicates")
+        duplicates = df.duplicated(subset=data.duplicate_columns_subset, keep="first")
+        st.write(df[duplicates])
+
+        if duplicates.sum() and st.button("Drop {} Duplicates".format(duplicates.sum())):
+            source.drop_duplicates(subset=data.duplicate_columns_subset, keep="first", inplace=True)
+            data.write_source(source)
+elif "Model" in views:
+    st.header("Model")
+
+    if st.sidebar.checkbox("Process Inputs"):
+        st.subheader("Process Inputs")
+        inputs = bot.format_and_tag_inputs()
+        st.write(inputs)
+
+        new_inputs = data.insert_inputs(inputs)
+        # st.write(f"{new_inputs.index.shape[0]} entries to insert")
+        st.write(new_inputs)
+        if st.button("Insert Inputs"):
+            data.insert_inputs(inputs)
+            st.write("Source data updated!!")
+
+    if st.sidebar.checkbox("Tag Validation"):
+        st.subheader("Tag Validation")
+        threshold = st.slider("Threshold", 0.0, 1.0, value=0.8, step=0.05)
+        df_validated = bot.validate_inputs(df, threshold=threshold)
+
+        if "df_to_validate" not in st.session_state:
+            st.session_state["df_to_validate"] = df_validated
+        if "df_current_index" not in st.session_state:
+            st.session_state["df_current_index"] = iter(df_validated.index)
+
+        st.write(f"There are {df_validated.index.shape[0]} tags to validate")
+
+        i = next(st.session_state.df_current_index, None)
+        if i:
+            df_validated.loc[i]
+
+            left_tag_column, right_tag_column = st.columns(2)
+            existing_tag = left_tag_column.selectbox("Select a tag for this record...", [""] + mlp.classes_.tolist())
+            new_tag = right_tag_column.text_input("...or enter a new tag")
+            tag = existing_tag if existing_tag else new_tag
+
+            st.button("Skip")
+            if tag:
+                if st.button("Update"):
+                    st.session_state.df_to_validate.loc[i, "tags"] = tag
+        else:
+            st.write(st.session_state.df_to_validate)
