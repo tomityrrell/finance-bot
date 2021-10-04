@@ -93,6 +93,7 @@ if "Data" in views:
     enable_tag_update = st.sidebar.checkbox("Tag Update")
     enable_duplicates = st.sidebar.checkbox("Check Duplicates")
     enable_tag_replace = st.sidebar.checkbox("Tag Replace")
+    enable_trends = st.sidebar.checkbox("Trends")
 
     #
     # FUNCTIONS
@@ -145,6 +146,7 @@ if "Data" in views:
         if duplicates.sum() and st.button("Drop {} Duplicates".format(duplicates.sum())):
             source.drop_duplicates(subset=data.duplicate_columns_subset, keep="first", inplace=True)
             data.write_source(source)
+
 elif "Model" in views:
     st.header("Model")
 

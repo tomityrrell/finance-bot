@@ -13,8 +13,8 @@ duplicate_columns_subset = target_columns[:3] + target_columns[-2:]
 source_column_mappings = {source_columns[i]: target_columns[i] for i in range(len(source_columns))}
 
 
-def read_source():
-    source = pd.read_csv("../data/source.csv")
+def read_source(path=SOURCE_PATH):
+    source = pd.read_csv(path)
     source.date = pd.to_datetime(source.date)
 
     source.fillna(value="", inplace=True)

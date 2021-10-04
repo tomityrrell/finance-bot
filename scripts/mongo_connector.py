@@ -5,7 +5,7 @@ import pymongo
 from data import read_source
 
 # Assume docker container started with:
-# docker run --name finance-bot-mongo -d mongo:latest --expose 27017 -v finance-bot-volume:/app
+# docker run -d -p 27017:27017 --name finance-bot-mongo -v finance-bot-volume:/data/db mongo
 
 
 class MongoConnector:
