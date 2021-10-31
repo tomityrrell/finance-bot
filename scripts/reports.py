@@ -1,5 +1,6 @@
 import data
 
+
 def current_balance(source):
     return source.amount.sum().round(2)
 
