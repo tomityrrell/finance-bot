@@ -60,9 +60,11 @@ def format_and_tag_inputs():
 
     # Formatting
     input_df = input_df[data.target_columns]
-    input_df.fillna(value="", inplace=True)
+
     input_df.date = pd.to_datetime(input_df.date)
+    input_df.fillna(value="", inplace=True)
     input_df.check = input_df.check.astype("float64")
+
     input_df.sort_values(by="date", inplace=True)
     input_df.reset_index(drop=True, inplace=True)
 

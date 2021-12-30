@@ -34,7 +34,7 @@ def build_model(event="model_creation"):
     source = read_source()
 
     # Filter data
-    training_filter = (source.date.dt.year >= 2019)
+    training_filter = (source.date.dt.year >= 2017)
     training_source = source[training_filter]
 
     # Build model pipelines
