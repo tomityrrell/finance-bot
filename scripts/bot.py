@@ -89,7 +89,7 @@ def validate_inputs(input_df, threshold=0.8):
     probs = tagger.predict_proba(input_df)
 
     # identify trans/tags with low confidence
-    low_prob_index = input_df.index[probs.max(axis=1) < threshold]
+    low_prob_index = input_df.index[probs.max(axis=1) <= threshold]
 
     # find max probability and top 3 tags for each low prob transaction
     low_prob_columns = probs[input_df.index.isin(low_prob_index)].argsort(axis=1)

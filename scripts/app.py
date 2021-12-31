@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import pandas as pd
 import streamlit as st
 
 import data
@@ -17,7 +18,6 @@ this_year = datetime.now().year
 
 mlp = model.read_model()
 source = data.read_source()
-source = source[source.date >= "2017-01-19"]
 
 monthly = reports.monthly_report(source)
 yearly = reports.yearly_report(source)
@@ -34,8 +34,7 @@ st.set_page_config(layout='wide')
 
 views = st.sidebar.selectbox("Views", ["Data", "Model"])
 
-st.title('Finance Bot 6000')
-st.write("Current Balance:", reports.current_balance(source))
+current_balance = st.empty()
 
 if "Data" in views:
     st.sidebar.title("Filters")
@@ -45,7 +44,7 @@ if "Data" in views:
 
     st.sidebar.title("Functions")
     enable_tag_update = st.sidebar.checkbox("Tag Update")
-    enable_duplicates = False #st.sidebar.checkbox("Check Duplicates")
+    enable_duplicates = False  # st.sidebar.checkbox("Check Duplicates")
     enable_tag_replace = st.sidebar.checkbox("Tag Replace")
     enable_trends = st.sidebar.checkbox("Trends")
 
@@ -54,45 +53,45 @@ if "Data" in views:
     #
 
     df_filter = source.index == source.index
+    delta_filter = df_filter
     df = source[df_filter]
 
     report = st.empty()
 
-    # Year and Month filters
     left_year_column, right_month_column = st.columns(2)
+    y, m, tag_filter = None, None, None
+
+    # Time filters
     if enable_year_filter:
         y = left_year_column.selectbox("Year", yearly.columns)
+        time_delta = pd.Timestamp(f"{y}")
         df_filter = df_filter & (source.date.dt.year == y)
-
-        enable_summary_report = st.checkbox("View full report")
         if enable_month_filter:
             m = right_month_column.selectbox("Month", monthly[y].columns)
+            time_delta += pd.DateOffset(month=m, days=-1)
+            delta_filter = delta_filter & (source.date.dt.year == time_delta.year) & (
+                    source.date.dt.month == time_delta.month)
             df_filter = df_filter & (source.date.dt.month == m)
+            time_delta += pd.DateOffset(months=1)
+        else:
+            time_delta += pd.DateOffset(year=y, days=-1)
+            delta_filter = delta_filter & (source.date.dt.year == time_delta.year)
+            time_delta += pd.DateOffset(years=1)
 
-            if enable_summary_report:
-                monthly_f = monthly.loc[:, monthly.columns <= (y, m)].sort_values(by=(y, m))
-                report.write(monthly_f)
-        elif enable_summary_report:
-            report.write(yearly.loc[:, yearly.columns <= y].sort_values(by=y))
-
-        df = source[df_filter]
+    current_balance.metric("Current Balance", source[source.date <= time_delta].amount.sum().round(2),
+                           source[df_filter].amount.sum().round(2))
 
     # Tag filters
     if enable_tags_filter:
         tag_filter = st.multiselect("Tags", df.tags.sort_values().unique(), default=[])
         df_filter = df_filter & (source.tags.isin(tag_filter)) if tag_filter else df_filter
+        delta_filter = delta_filter & (source.tags.isin(tag_filter)) if tag_filter else delta_filter
 
-        # Display filtered data
-        df = source[df_filter].sort_values("date")
+    df = source[df_filter].sort_values("date")
+    delta_df = source[delta_filter].sort_values("date")
 
+    st.metric("Filtered Balance", df.amount.sum().round(2), (df.amount.sum() - delta_df.amount.sum()).round(2))
     st.write(df)
-
-    df_grouped = df.groupby("tags").sum().amount.sort_values()
-    df_grouped_in = df_grouped[df_grouped > 0]
-    df_grouped_out = df_grouped[df_grouped < 0]
-
-    left_year_column.write(df_grouped_out)
-    right_month_column.bar_chart(df_grouped_out)
 
     #
     # FUNCTIONS
@@ -168,7 +167,7 @@ elif "Model" in views:
         threshold = st.slider("Threshold", 0.0, 1.0, value=0.8, step=0.05)
         df_validated = bot.validate_inputs(source, threshold=threshold)
 
-        if st.button("Run Validation"):
+        if "df_current_index" not in st.session_state or st.button("Run Validation"):
             st.session_state["df_to_validate"] = df_validated
             st.session_state["df_current_index"] = iter(df_validated.index)
 
@@ -189,4 +188,4 @@ elif "Model" in views:
         else:
             st.write("All tags validated")
             st.write(st.session_state.df_to_validate)
-            # TO DO Call data.update_tag with validated data
+            # TODO Call data.update_tag with validated data
