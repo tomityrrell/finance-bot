@@ -82,6 +82,18 @@ if "Data" in views:
     current_balance.metric("Current Balance", source[source.date <= time_delta].amount.sum().round(2),
                            source[df_filter].amount.sum().round(2))
 
+    df = source[df_filter].sort_values("date")
+    delta_df = source[delta_filter].sort_values("date")
+
+    tags = ["Housing", "Utilities"]
+    left_year_column.metric("Housing+Utilities", df[df.tags.isin(tags)].amount.sum().round(2), (df[df.tags.isin(tags)].amount.sum() - delta_df[delta_df.tags.isin(tags)].amount.sum()).round(2))
+    tags = ["Groceries", "Food", "Costco"]
+    left_year_column.metric("Groceries+Food+Costco", df[df.tags.isin(tags)].amount.sum().round(2), (df[df.tags.isin(tags)].amount.sum() - delta_df[delta_df.tags.isin(tags)].amount.sum()).round(2))
+    tags = ["Car", "Gas"]
+    left_year_column.metric("Car+Gas", df[df.tags.isin(tags)].amount.sum().round(2), (df[df.tags.isin(tags)].amount.sum() - delta_df[delta_df.tags.isin(tags)].amount.sum()).round(2))
+    right_month_column.write(df.groupby("tags").amount.sum().sort_values())
+
+
     # Tag filters
     if enable_tags_filter:
         tag_filter = st.multiselect("Tags", df.tags.sort_values().unique(), default=[])
@@ -91,8 +103,8 @@ if "Data" in views:
     df = source[df_filter].sort_values("date")
     delta_df = source[delta_filter].sort_values("date")
 
-    st.metric("Filtered Balance", df.amount.sum().round(2), (df.amount.sum() - delta_df.amount.sum()).round(2))
     st.write(df)
+    st.metric("Filtered Balance", df.amount.sum().round(2), (df.amount.sum() - delta_df.amount.sum()).round(2))
 
     #
     # FUNCTIONS
