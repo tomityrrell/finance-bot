@@ -45,6 +45,7 @@ if "Data" in views:
     st.sidebar.title("Functions")
     enable_tag_update = st.sidebar.checkbox("Tag Update")
     enable_duplicates = False  # st.sidebar.checkbox("Check Duplicates")
+    enable_add_offset = st.sidebar.checkbox("Add Offset")
     enable_tag_replace = st.sidebar.checkbox("Tag Replace")
     enable_trends = st.sidebar.checkbox("Trends")
 
@@ -143,6 +144,25 @@ if "Data" in views:
 
         if duplicates.sum() and st.button("Drop {} Duplicates".format(duplicates.sum())):
             source.drop_duplicates(subset=data.duplicate_columns_subset, keep="first")
+
+    # ADD OFFSET
+    if enable_add_offset:
+        st.header("Add Offset")
+
+        index = st.number_input("Enter a positive index, or -1 to add an offset to it:", value=-1)
+        if index > 0:
+            row_to_update = source.loc[index]
+            update_index = index
+            st.write(row_to_update)
+
+            offset_amount = st.number_input("Enter the amount to offset")
+            offset_tag = st.selectbox("Select a tag for the offset entry", [""] + mlp.classes_.tolist())
+
+            if offset_tag:
+                st.write(f"You are updating the amount to {row_to_update.amount - offset_amount}")
+                if st.button("Update Data"):
+                    data.add_offset(update_index, offset_amount, offset_tag, True)
+                    st.write("Offset Added!")
 
 
 elif "Model" in views:
